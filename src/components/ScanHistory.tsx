@@ -8,6 +8,7 @@ import {
   QrCode,
   AlertCircle,
   BarChart2,
+  ExternalLink,
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import type { Scan } from '../types'
@@ -17,6 +18,7 @@ interface ScanHistoryProps {
   loading: boolean
   error: string | null
   onDelete?: (id: string) => void
+  onClearAll?: () => void
 }
 
 function getTypeBadgeClass(type: string): string {
@@ -29,6 +31,15 @@ function getTypeBadgeClass(type: string): string {
 
 function formatType(type: string): string {
   return type.replace(/_/g, ' ')
+}
+
+function isURL(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function exportToCSV(scans: Scan[]) {
@@ -47,7 +58,7 @@ function exportToCSV(scans: Scan[]) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `omnidevx-scans-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`
+  a.download = `scans-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -69,13 +80,7 @@ function SkeletonCard() {
   )
 }
 
-function ScanCard({
-  scan,
-  onDelete,
-}: {
-  scan: Scan
-  onDelete?: (id: string) => void
-}) {
+function ScanCard({ scan, onDelete }: { scan: Scan; onDelete?: (id: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
 
@@ -85,16 +90,16 @@ function ScanCard({
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      // Clipboard API not available
+      // clipboard not available
     }
   }
 
   const ts = new Date(scan.timestamp)
+  const valueIsURL = isURL(scan.value)
 
   return (
     <div className="scan-card animate-slide-up">
       <div className="flex items-start gap-3">
-        {/* Icon */}
         <div className="flex-shrink-0 mt-0.5">
           {scan.type === 'QR_CODE' ? (
             <QrCode className="w-5 h-5 text-violet-400" />
@@ -103,23 +108,34 @@ function ScanCard({
           )}
         </div>
 
-        {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Value */}
-          <button
-            onClick={handleCopy}
-            className="block w-full text-left group"
-            title="Click to copy"
-          >
-            <p className="text-slate-100 font-mono text-sm break-all leading-relaxed group-hover:text-brand-300 transition-colors">
-              {scan.value}
-            </p>
-            {copied && (
-              <span className="text-xs text-emerald-400 animate-fade-in">Copied!</span>
-            )}
-          </button>
+          <div className="flex items-start gap-2">
+            <button
+              onClick={handleCopy}
+              className="flex-1 text-left group"
+              title="Click to copy"
+            >
+              <p className="text-slate-100 font-mono text-sm break-all leading-relaxed group-hover:text-brand-300 transition-colors">
+                {scan.value}
+              </p>
+              {copied && (
+                <span className="text-xs text-emerald-400 animate-fade-in">Copied!</span>
+              )}
+            </button>
 
-          {/* Meta row */}
+            {valueIsURL && (
+              <a
+                href={scan.value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 mt-0.5 text-slate-500 hover:text-brand-400 transition-colors"
+                title="Open URL"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className={getTypeBadgeClass(scan.type)}>
               {formatType(scan.type)}
@@ -138,24 +154,18 @@ function ScanCard({
             )}
           </div>
 
-          {/* Exact timestamp */}
           <p className="text-slate-600 text-xs mt-1">
             {format(ts, 'MMM d, yyyy · HH:mm:ss')}
           </p>
         </div>
 
-        {/* Delete button */}
         {onDelete && (
           <div className="flex-shrink-0">
             {showDelete ? (
               <div className="flex gap-1">
                 <button
-                  onClick={() => {
-                    onDelete(scan.id)
-                    setShowDelete(false)
-                  }}
+                  onClick={() => { onDelete(scan.id); setShowDelete(false) }}
                   className="text-red-400 hover:text-red-300 transition-colors p-1 rounded-lg hover:bg-red-500/10"
-                  title="Confirm delete"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -169,9 +179,8 @@ function ScanCard({
             ) : (
               <button
                 onClick={() => setShowDelete(true)}
-                className="text-slate-600 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100"
+                className="text-slate-600 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10"
                 style={{ opacity: 1 }}
-                title="Delete scan"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -183,8 +192,9 @@ function ScanCard({
   )
 }
 
-export default function ScanHistory({ scans, loading, error, onDelete }: ScanHistoryProps) {
+export default function ScanHistory({ scans, loading, error, onDelete, onClearAll }: ScanHistoryProps) {
   const [query, setQuery] = useState('')
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const filtered = useMemo(() => {
     if (!query.trim()) return scans
@@ -197,9 +207,18 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
     )
   }, [scans, query])
 
+  const handleClearAll = () => {
+    if (!confirmClear) {
+      setConfirmClear(true)
+      setTimeout(() => setConfirmClear(false), 3000)
+      return
+    }
+    onClearAll?.()
+    setConfirmClear(false)
+  }
+
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
-      {/* Search & Export toolbar */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
@@ -219,9 +238,19 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
         >
           <Download className="w-4 h-4" />
         </button>
+        {onClearAll && scans.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            className={`btn-secondary px-3 flex-shrink-0 transition-colors ${
+              confirmClear ? 'text-red-400 border-red-500/40 bg-red-500/10 hover:bg-red-500/20' : ''
+            }`}
+            title={confirmClear ? 'Tap again to confirm' : 'Clear all'}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Stats bar */}
       {!loading && scans.length > 0 && (
         <div className="flex items-center justify-between text-xs text-slate-500 px-1">
           <span>
@@ -235,7 +264,6 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
         </div>
       )}
 
-      {/* Error state */}
       {error && (
         <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
           <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
@@ -246,7 +274,6 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
         </div>
       )}
 
-      {/* Loading skeletons */}
       {loading && (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -255,7 +282,6 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && !error && scans.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
           <div className="w-20 h-20 rounded-2xl bg-slate-800/80 flex items-center justify-center">
@@ -270,7 +296,6 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
         </div>
       )}
 
-      {/* No results after search */}
       {!loading && !error && scans.length > 0 && filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
           <Search className="w-10 h-10 text-slate-600" />
@@ -280,24 +305,16 @@ export default function ScanHistory({ scans, loading, error, onDelete }: ScanHis
               No scans match "<span className="text-slate-400">{query}</span>"
             </p>
           </div>
-          <button
-            onClick={() => setQuery('')}
-            className="btn-secondary text-sm"
-          >
+          <button onClick={() => setQuery('')} className="btn-secondary text-sm">
             Clear search
           </button>
         </div>
       )}
 
-      {/* Scan list */}
       {!loading && filtered.length > 0 && (
         <div className="flex flex-col gap-3">
           {filtered.map((scan) => (
-            <ScanCard
-              key={scan.id}
-              scan={scan}
-              onDelete={onDelete}
-            />
+            <ScanCard key={scan.id} scan={scan} onDelete={onDelete} />
           ))}
         </div>
       )}

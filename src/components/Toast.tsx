@@ -27,8 +27,8 @@ function SingleToast({ toast, onDismiss, duration = 3500 }: ToastProps) {
 
   const icons = {
     success: <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />,
-    error:   <XCircle     className="w-5 h-5 text-red-400     flex-shrink-0" />,
-    info:    <Info        className="w-5 h-5 text-brand-400   flex-shrink-0" />,
+    error:   <XCircle      className="w-5 h-5 text-red-400     flex-shrink-0" />,
+    info:    <Info         className="w-5 h-5 text-brand-400   flex-shrink-0" />,
   }
 
   const borders = {
@@ -50,13 +50,11 @@ function SingleToast({ toast, onDismiss, duration = 3500 }: ToastProps) {
       `}
     >
       {icons[toast.type]}
-      <p className="flex-1 text-slate-100 text-sm font-medium leading-snug">
-        {toast.message}
-      </p>
+      <p className="flex-1 text-slate-100 text-sm font-medium leading-snug">{toast.message}</p>
       <button
         onClick={dismiss}
         className="flex-shrink-0 text-slate-500 hover:text-slate-300 transition-colors p-0.5 rounded"
-        aria-label="Dismiss notification"
+        aria-label="Dismiss"
       >
         <X className="w-4 h-4" />
       </button>
@@ -64,12 +62,7 @@ function SingleToast({ toast, onDismiss, duration = 3500 }: ToastProps) {
   )
 }
 
-interface ToastContainerProps {
-  toasts: ToastMessage[]
-  onDismiss: (id: string) => void
-}
-
-export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
+export function ToastContainer({ toasts, onDismiss }: { toasts: ToastMessage[]; onDismiss: (id: string) => void }) {
   if (toasts.length === 0) return null
 
   return (
@@ -78,17 +71,12 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
       aria-label="Notifications"
     >
       {toasts.map((toast) => (
-        <SingleToast
-          key={toast.id}
-          toast={toast}
-          onDismiss={onDismiss}
-        />
+        <SingleToast key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}
     </div>
   )
 }
 
-// Hook for managing toasts
 export function useToasts() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
@@ -98,13 +86,13 @@ export function useToasts() {
     return id
   }
 
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+  const dismissToast = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id))
+
+  return {
+    toasts,
+    dismissToast,
+    success: (msg: string) => addToast(msg, 'success'),
+    error:   (msg: string) => addToast(msg, 'error'),
+    info:    (msg: string) => addToast(msg, 'info'),
   }
-
-  const success = (message: string) => addToast(message, 'success')
-  const error   = (message: string) => addToast(message, 'error')
-  const info    = (message: string) => addToast(message, 'info')
-
-  return { toasts, dismissToast, success, error, info }
 }

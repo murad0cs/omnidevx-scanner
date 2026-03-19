@@ -7,14 +7,14 @@ interface ManualEntryProps {
 }
 
 const SCAN_TYPES = [
-  { value: 'QR_CODE',   label: 'QR Code' },
-  { value: 'EAN_13',    label: 'EAN-13 Barcode' },
-  { value: 'EAN_8',     label: 'EAN-8 Barcode' },
-  { value: 'CODE_128',  label: 'Code 128' },
-  { value: 'CODE_39',   label: 'Code 39' },
-  { value: 'UPC_A',     label: 'UPC-A' },
-  { value: 'UPC_E',     label: 'UPC-E' },
-  { value: 'OTHER',     label: 'Other' },
+  { value: 'QR_CODE',  label: 'QR Code' },
+  { value: 'EAN_13',   label: 'EAN-13 Barcode' },
+  { value: 'EAN_8',    label: 'EAN-8 Barcode' },
+  { value: 'CODE_128', label: 'Code 128' },
+  { value: 'CODE_39',  label: 'Code 39' },
+  { value: 'UPC_A',    label: 'UPC-A' },
+  { value: 'UPC_E',    label: 'UPC-E' },
+  { value: 'OTHER',    label: 'Other' },
 ]
 
 export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
@@ -24,7 +24,6 @@ export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    // Auto-focus input when component mounts
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [])
 
@@ -45,7 +44,6 @@ export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
 
   return (
     <div className="bg-slate-800/80 border border-slate-700/60 rounded-2xl p-4 backdrop-blur-sm animate-slide-up">
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-brand-600/20 flex items-center justify-center">
@@ -65,11 +63,8 @@ export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        {/* Code value input */}
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5 font-medium">
-            Code Value
-          </label>
+          <label className="block text-xs text-slate-400 mb-1.5 font-medium">Code Value</label>
           <input
             ref={inputRef}
             type="text"
@@ -84,11 +79,8 @@ export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
           />
         </div>
 
-        {/* Type selector */}
         <div>
-          <label className="block text-xs text-slate-400 mb-1.5 font-medium">
-            Code Type
-          </label>
+          <label className="block text-xs text-slate-400 mb-1.5 font-medium">Code Type</label>
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
@@ -102,7 +94,6 @@ export default function ManualEntry({ onSubmit, onClose }: ManualEntryProps) {
           </select>
         </div>
 
-        {/* Submit button */}
         <button
           type="submit"
           disabled={!value.trim() || submitted}

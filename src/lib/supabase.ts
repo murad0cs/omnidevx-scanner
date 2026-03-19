@@ -3,17 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '[OmniScan] Supabase environment variables not set. ' +
-    'Copy .env.example to .env and fill in your Supabase credentials. ' +
-    'The app will run in offline/demo mode.'
-  )
-}
-
-// Create a no-op stub when credentials are missing (offline/demo mode)
-export const isSupabaseConfigured =
-  Boolean(supabaseUrl) && Boolean(supabaseAnonKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl) && Boolean(supabaseAnonKey)
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {

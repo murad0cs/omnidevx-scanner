@@ -1,27 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
 import { DecodeHintType, BarcodeFormat, NotFoundException } from '@zxing/library'
-import {
-  Camera,
-  CameraOff,
-  Keyboard,
-  RefreshCw,
-  Zap,
-  AlertCircle,
-} from 'lucide-react'
+import { Camera, CameraOff, Keyboard, RefreshCw, Zap, AlertCircle, Flashlight } from 'lucide-react'
 import ManualEntry from './ManualEntry'
 
 interface ScannerProps {
   onScan: (value: string, type: string) => void
 }
 
-type ScannerState =
-  | 'idle'
-  | 'requesting'
-  | 'scanning'
-  | 'error'
-  | 'permission-denied'
-  | 'no-camera'
+type ScannerState = 'idle' | 'requesting' | 'scanning' | 'error' | 'permission-denied' | 'no-camera'
 
 const HINTS = new Map<DecodeHintType, unknown>()
 HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
@@ -39,20 +26,30 @@ HINTS.set(DecodeHintType.POSSIBLE_FORMATS, [
 ])
 HINTS.set(DecodeHintType.TRY_HARDER, true)
 
+function vibrate(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {
+    // not supported
+  }
+}
+
 export default function Scanner({ onScan }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const readerRef = useRef<BrowserMultiFormatReader | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const controlsRef = useRef<{ stop: () => void } | null>(null)
+  const lastScannedRef = useRef<{ value: string; time: number }>({ value: '', time: 0 })
 
   const [state, setState] = useState<ScannerState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [showManual, setShowManual] = useState(false)
-  const lastScannedRef = useRef<{ value: string; time: number }>({ value: '', time: 0 })
   const [scanFlash, setScanFlash] = useState(false)
   const [scannedType, setScannedType] = useState('')
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
   const [selectedCamera, setSelectedCamera] = useState<string | undefined>(undefined)
+  const [torchOn, setTorchOn] = useState(false)
+  const [torchAvailable, setTorchAvailable] = useState(false)
 
   const stopCamera = useCallback(() => {
     try {
@@ -69,7 +66,22 @@ export default function Scanner({ onScan }: ScannerProps) {
       videoRef.current.srcObject = null
     }
     readerRef.current = null
+    setTorchOn(false)
+    setTorchAvailable(false)
   }, [])
+
+  const toggleTorch = useCallback(async () => {
+    if (!streamRef.current) return
+    const track = streamRef.current.getVideoTracks()[0]
+    if (!track) return
+    try {
+      const next = !torchOn
+      await track.applyConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] })
+      setTorchOn(next)
+    } catch {
+      // torch not supported on this device
+    }
+  }, [torchOn])
 
   const startScanner = useCallback(async (deviceId?: string) => {
     stopCamera()
@@ -77,20 +89,14 @@ export default function Scanner({ onScan }: ScannerProps) {
     setErrorMessage('')
 
     try {
-      // List available cameras
       let availableCameras: MediaDeviceInfo[] = []
       try {
         availableCameras = await BrowserMultiFormatReader.listVideoInputDevices()
         setCameras(availableCameras)
       } catch {
-        // listVideoInputDevices can fail before permission is granted — continue anyway
+        // permission not yet granted
       }
 
-      if (availableCameras.length === 0 && !deviceId) {
-        // Try to just request user media directly
-      }
-
-      // Determine camera constraints — prefer back camera on mobile
       const constraints: MediaStreamConstraints = {
         video: deviceId
           ? { deviceId: { exact: deviceId } }
@@ -102,7 +108,6 @@ export default function Scanner({ onScan }: ScannerProps) {
         audio: false,
       }
 
-      // Request camera stream
       let stream: MediaStream
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -110,7 +115,7 @@ export default function Scanner({ onScan }: ScannerProps) {
         if (err instanceof DOMException) {
           if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
             setState('permission-denied')
-            setErrorMessage('Camera access was denied. Please allow camera access in your browser settings and try again.')
+            setErrorMessage('Camera access was denied. Allow camera access in your browser settings and try again.')
             return
           }
           if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
@@ -120,7 +125,7 @@ export default function Scanner({ onScan }: ScannerProps) {
           }
           if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
             setState('error')
-            setErrorMessage('Camera is in use by another application. Please close other apps using the camera.')
+            setErrorMessage('Camera is in use by another app. Close it and try again.')
             return
           }
         }
@@ -134,43 +139,39 @@ export default function Scanner({ onScan }: ScannerProps) {
         return
       }
 
-      // Re-list cameras now that permission is granted
       try {
-        const camsAfterPermission = await BrowserMultiFormatReader.listVideoInputDevices()
-        setCameras(camsAfterPermission)
+        const cams = await BrowserMultiFormatReader.listVideoInputDevices()
+        setCameras(cams)
       } catch {
         // ignore
       }
 
-      // Attach stream to video element
-      videoRef.current.srcObject = stream
+      const track = stream.getVideoTracks()[0]
+      if (track) {
+        const caps = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean }
+        setTorchAvailable(Boolean(caps?.torch))
+      }
 
-      // iOS Safari requires these attributes
+      videoRef.current.srcObject = stream
       videoRef.current.setAttribute('autoplay', '')
       videoRef.current.setAttribute('muted', '')
       videoRef.current.setAttribute('playsinline', '')
 
-      await videoRef.current.play().catch(() => {
-        // Some browsers require user gesture — handled by the UI
-      })
+      await videoRef.current.play().catch(() => {})
 
       setState('scanning')
 
-      // Initialize ZXing reader with hints
       const reader = new BrowserMultiFormatReader(HINTS, {
         delayBetweenScanAttempts: 100,
         delayBetweenScanSuccess: 1500,
       })
       readerRef.current = reader
 
-      // Start decoding from the existing video stream
       const controls = await reader.decodeFromStream(stream, videoRef.current, (result, err) => {
         if (result) {
           const value = result.getText()
-          const format = result.getBarcodeFormat()
-          const typeName = getBarcodeTypeName(format)
+          const typeName = getBarcodeTypeName(result.getBarcodeFormat())
 
-          // Debounce: skip same value scanned within 3 seconds (ref-based, no stale closure)
           const now = Date.now()
           const last = lastScannedRef.current
           if (value === last.value && now - last.time < 3000) return
@@ -179,43 +180,32 @@ export default function Scanner({ onScan }: ScannerProps) {
           setScannedType(typeName)
           setScanFlash(true)
           setTimeout(() => setScanFlash(false), 500)
+          vibrate([50, 30, 50])
 
           onScan(value, typeName)
         } else if (err && !(err instanceof NotFoundException)) {
-          // Only log non-"not found" errors — NotFoundException is normal (frame with no barcode)
-          console.debug('[Scanner] decode error:', err)
+          // non-critical decode error
         }
       })
 
       controlsRef.current = controls
     } catch (err) {
-      console.error('[Scanner] startScanner error:', err)
       setState('error')
       setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : 'An unexpected error occurred while starting the camera.'
+        err instanceof Error ? err.message : 'An unexpected error occurred while starting the camera.'
       )
     }
   }, [stopCamera, onScan])
 
-  // Start scanner on mount
   useEffect(() => {
     startScanner(selectedCamera)
-    return () => {
-      stopCamera()
-    }
+    return () => stopCamera()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Restart when camera selection changes
   const handleCameraChange = (deviceId: string) => {
     setSelectedCamera(deviceId)
     startScanner(deviceId)
-  }
-
-  const handleRetry = () => {
-    startScanner(selectedCamera)
   }
 
   const handleManualSubmit = (value: string, type: string) => {
@@ -229,9 +219,7 @@ export default function Scanner({ onScan }: ScannerProps) {
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in">
-      {/* Scanner viewport */}
       <div className="scanner-viewport shadow-2xl shadow-black/50">
-        {/* Video element */}
         <video
           ref={videoRef}
           className="scanner-video"
@@ -241,7 +229,6 @@ export default function Scanner({ onScan }: ScannerProps) {
           style={{ display: isScanning || isLoading ? 'block' : 'none' }}
         />
 
-        {/* Loading state */}
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 gap-3">
             <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
@@ -249,7 +236,6 @@ export default function Scanner({ onScan }: ScannerProps) {
           </div>
         )}
 
-        {/* Error states */}
         {isError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 p-6 gap-4 text-center">
             <div className="w-16 h-16 rounded-full bg-red-500/15 flex items-center justify-center">
@@ -266,10 +252,7 @@ export default function Scanner({ onScan }: ScannerProps) {
               <p className="text-slate-400 text-sm leading-relaxed">{errorMessage}</p>
             </div>
             {state !== 'no-camera' && (
-              <button
-                onClick={handleRetry}
-                className="btn-secondary text-sm"
-              >
+              <button onClick={() => startScanner(selectedCamera)} className="btn-secondary text-sm">
                 <RefreshCw className="w-4 h-4" />
                 Try Again
               </button>
@@ -277,10 +260,8 @@ export default function Scanner({ onScan }: ScannerProps) {
           </div>
         )}
 
-        {/* Scanning overlay */}
         {isScanning && (
           <>
-            {/* Dark vignette on sides */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -289,7 +270,6 @@ export default function Scanner({ onScan }: ScannerProps) {
               }}
             />
 
-            {/* Corner frame brackets */}
             <div className="scan-frame">
               <div className="scan-corner scan-corner-tl" />
               <div className="scan-corner scan-corner-tr" />
@@ -297,19 +277,13 @@ export default function Scanner({ onScan }: ScannerProps) {
               <div className="scan-corner scan-corner-br" />
             </div>
 
-            {/* Animated laser line */}
             <div className="laser-line" />
 
-            {/* Scan success flash */}
             {scanFlash && <div className="scan-success-flash" />}
 
-            {/* Scan hint text */}
             <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 flex flex-col items-center gap-2">
               {scannedType && (
-                <span
-                  className="type-badge type-badge-qr animate-fade-in"
-                  style={{ animationDuration: '0.2s' }}
-                >
+                <span className="type-badge type-badge-qr animate-fade-in" style={{ animationDuration: '0.2s' }}>
                   {scannedType}
                 </span>
               )}
@@ -318,16 +292,27 @@ export default function Scanner({ onScan }: ScannerProps) {
               </p>
             </div>
 
-            {/* Live indicator */}
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-              <span className="text-white text-xs font-medium">LIVE</span>
+            <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-white text-xs font-medium">LIVE</span>
+              </div>
+              {torchAvailable && (
+                <button
+                  onClick={toggleTorch}
+                  className={`flex items-center gap-1.5 backdrop-blur-sm rounded-full px-2.5 py-1 transition-colors ${
+                    torchOn ? 'bg-yellow-500/80 text-white' : 'bg-black/50 text-white/70'
+                  }`}
+                >
+                  <Flashlight className="w-3.5 h-3.5" />
+                  <span className="text-xs font-medium">{torchOn ? 'On' : 'Torch'}</span>
+                </button>
+              )}
             </div>
           </>
         )}
       </div>
 
-      {/* Camera selector (shown when multiple cameras exist) */}
       {cameras.length > 1 && isScanning && (
         <div className="flex items-center gap-3">
           <Camera className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -345,31 +330,20 @@ export default function Scanner({ onScan }: ScannerProps) {
         </div>
       )}
 
-      {/* Action buttons */}
       <div className="flex gap-3">
         {isError ? (
-          <button
-            onClick={() => setShowManual(true)}
-            className="btn-primary flex-1"
-          >
+          <button onClick={() => setShowManual(true)} className="btn-primary flex-1">
             <Keyboard className="w-4 h-4" />
             Enter Code Manually
           </button>
         ) : (
           <>
-            <button
-              onClick={() => setShowManual((v) => !v)}
-              className="btn-secondary flex-1"
-            >
+            <button onClick={() => setShowManual((v) => !v)} className="btn-secondary flex-1">
               <Keyboard className="w-4 h-4" />
               {showManual ? 'Hide Manual Entry' : 'Enter Manually'}
             </button>
             {isScanning && (
-              <button
-                onClick={handleRetry}
-                className="btn-secondary px-3"
-                title="Restart camera"
-              >
+              <button onClick={() => startScanner(selectedCamera)} className="btn-secondary px-3" title="Restart camera">
                 <RefreshCw className="w-4 h-4" />
               </button>
             )}
@@ -377,7 +351,6 @@ export default function Scanner({ onScan }: ScannerProps) {
         )}
       </div>
 
-      {/* Supported formats info */}
       {isScanning && (
         <div className="flex items-start gap-2 bg-slate-800/50 rounded-xl p-3 border border-slate-700/50">
           <Zap className="w-4 h-4 text-brand-400 flex-shrink-0 mt-0.5" />
@@ -387,12 +360,8 @@ export default function Scanner({ onScan }: ScannerProps) {
         </div>
       )}
 
-      {/* Manual Entry Form */}
       {showManual && (
-        <ManualEntry
-          onSubmit={handleManualSubmit}
-          onClose={() => setShowManual(false)}
-        />
+        <ManualEntry onSubmit={handleManualSubmit} onClose={() => setShowManual(false)} />
       )}
     </div>
   )

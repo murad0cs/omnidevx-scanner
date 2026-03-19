@@ -1,146 +1,111 @@
-# OmniDevX Scanner
+# OmniScan
 
-A production-quality QR code and barcode scanner web app with real-time cloud sync. Scan barcodes and QR codes directly in the browser using your device camera, with all scans stored in Supabase and synced in real time across devices.
+A browser-based QR code and barcode scanner that works directly on your phone — no app install needed. Point your camera, it scans, the result goes straight to a cloud database, and you can see everything update in real time across all your devices.
 
-## Features
+Built with React, TypeScript, Supabase, and deployed on Vercel.
 
-- **Multi-format scanning** — QR Code, EAN-13, EAN-8, Code 128, Code 39, UPC-A, UPC-E, Data Matrix, PDF 417, Aztec, and more
-- **Real-time cloud sync** — Powered by Supabase Realtime; all scans sync instantly across devices
-- **Offline mode** — Falls back to localStorage when Supabase is not configured
-- **iOS Safari support** — Uses `playsInline` and `autoPlay` attributes required by iOS
-- **Android Chrome support** — Requests back-facing camera by default via `facingMode: environment`
-- **Manual entry fallback** — Enter codes manually when camera is unavailable or access is denied
-- **Scan history** — Searchable, filterable history with timestamps and device info
-- **CSV export** — Export all scan history to a CSV file
-- **Duplicate prevention** — Same scan value within 2 seconds is ignored
-- **Animated scanning overlay** — Laser line animation and corner brackets for intuitive UX
-- **Mobile-first design** — Tailwind CSS with dark theme, smooth animations, touch-friendly controls
+---
 
-## Tech Stack
+## What it does
 
-| Layer        | Technology                               |
-|--------------|------------------------------------------|
-| Framework    | React 18 + TypeScript                    |
-| Build tool   | Vite 5                                   |
-| Styling      | Tailwind CSS 3                           |
-| Scanning     | @zxing/browser + @zxing/library          |
-| Database     | Supabase (PostgreSQL + Realtime)         |
-| Deployment   | Vercel                                   |
-| Icons        | Lucide React                             |
-| Dates        | date-fns                                 |
+- Scans QR codes, EAN-13, EAN-8, Code 128, Code 39, UPC, Data Matrix, PDF 417, and more
+- Camera access via WebRTC — works on iOS Safari and Android Chrome out of the box
+- Every scan is saved to Supabase and shows up instantly without a page refresh
+- Manual entry fallback if the camera can't be used
+- Torch toggle (on supported Android devices)
+- Scan history with search, CSV export, delete, and clear all
+- URL scans are clickable links
+- Duplicate scan prevention — same value within 3 seconds is ignored
+- Offline mode using localStorage if Supabase credentials aren't configured
 
-## Prerequisites
+---
 
-- Node.js 18 or later
-- npm 9 or later
-- A Supabase project (free tier works fine)
+## Stack
 
-## Setup
+| | |
+|---|---|
+| Framework | React 18 + TypeScript |
+| Build | Vite 5 |
+| Styling | Tailwind CSS |
+| Scanner | @zxing/browser + @zxing/library |
+| Database | Supabase (Postgres + Realtime) |
+| Hosting | Vercel |
 
-### 1. Install dependencies
+---
+
+## Getting started
+
+You'll need Node 18+ and a Supabase project.
 
 ```bash
-cd "OmniDevX Studio"
+git clone https://github.com/murad0cs/omnidevx-scanner
+cd omnidevx-scanner
 npm install
-```
-
-### 2. Configure environment variables
-
-```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in your Supabase credentials:
+Fill in `.env` with your Supabase credentials (Project URL and anon key from Settings → API):
 
 ```
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
-### 3. Set up Supabase
-
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Open the **SQL Editor** in the Supabase dashboard
-3. Paste and run the contents of `supabase/migrations/001_create_scans.sql`
-4. Copy your **Project URL** and **anon public** key from **Settings > API**
-5. Paste them into your `.env` file
-
-### 4. Start development server
+Run the SQL migration in your Supabase SQL Editor (`supabase/migrations/001_create_scans.sql`), then:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+The app runs at `http://localhost:3000`. To test on a phone on the same network, use your local IP instead — camera access works on localhost without HTTPS.
 
-To test on a mobile device, find your local IP address and open `http://YOUR_IP:3000` in Safari or Chrome.
+---
 
-**Note:** Camera access requires HTTPS in production. On localhost it works without HTTPS.
+## Database setup
 
-## Deployment to Vercel
+Open the Supabase SQL Editor and run the contents of `supabase/migrations/001_create_scans.sql`. That creates the `scans` table, adds an index on `timestamp`, sets up RLS policies, and enables realtime.
 
-### Option A: Vercel CLI
+---
 
-```bash
-npm install -g vercel
-vercel --prod
-```
+## Deploying
 
-When prompted, add your environment variables:
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+Push to GitHub, then import the repo on [vercel.com](https://vercel.com). Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as environment variables before deploying. Vercel picks up Vite automatically — no extra configuration needed. The `vercel.json` handles SPA routing.
 
-### Option B: Vercel Dashboard
+---
 
-1. Push this repo to GitHub
-2. Go to [vercel.com](https://vercel.com) and import the repository
-3. Add environment variables in **Settings > Environment Variables**
-4. Deploy — Vercel auto-detects Vite
+## Environment variables
 
-The `vercel.json` file already includes SPA rewrites so deep links work correctly.
+| Variable | Description |
+|---|---|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon (public) key |
 
-## Environment Variables
+If neither is set, the app falls back to localStorage and runs fully offline.
 
-| Variable              | Required | Description                               |
-|-----------------------|----------|-------------------------------------------|
-| `VITE_SUPABASE_URL`   | No*      | Your Supabase project URL                 |
-| `VITE_SUPABASE_ANON_KEY` | No*   | Your Supabase anonymous (public) API key  |
+---
 
-*If omitted, the app runs in offline mode using localStorage.
-
-## Project Structure
+## Project layout
 
 ```
 src/
   components/
-    Scanner.tsx       # Camera scanner with ZXing, overlay, iOS/Android support
-    ScanHistory.tsx   # Searchable scan history with CSV export
+    Scanner.tsx       # Camera + ZXing, torch toggle, overlay, iOS/Android handling
+    ScanHistory.tsx   # Searchable history, CSV export, URL detection
     ManualEntry.tsx   # Manual code entry form
-    Toast.tsx         # Toast notification system + hook
+    Toast.tsx         # Toast notifications
   hooks/
-    useScans.ts       # Supabase data fetching, real-time subscription, addScan
+    useScans.ts       # Supabase data + realtime subscription
   lib/
-    supabase.ts       # Supabase client initialization
+    supabase.ts       # Client init
   types/
-    index.ts          # TypeScript types
-  App.tsx             # Root component, tabs, scan handler
-  main.tsx            # React entry point
-  index.css           # Tailwind directives + custom animations
+    index.ts
 supabase/
   migrations/
-    001_create_scans.sql  # Database schema
+    001_create_scans.sql
 ```
 
-## Browser Support
+---
 
-| Browser              | Supported |
-|----------------------|-----------|
-| iOS Safari 14+       | Yes       |
-| Android Chrome 90+   | Yes       |
-| Desktop Chrome       | Yes       |
-| Desktop Firefox      | Yes       |
-| Desktop Safari       | Yes       |
+## Browser support
 
-## License
-
-MIT
+Tested on iOS Safari 15+, Android Chrome 90+, and modern desktop browsers. Camera access requires HTTPS in production (Vercel handles this automatically).
