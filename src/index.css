@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Safe area for notch devices */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    overscroll-behavior: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+@layer components {
+  /* Scanner viewport */
+  .scanner-viewport {
+    @apply relative overflow-hidden rounded-2xl bg-black;
+    aspect-ratio: 4 / 3;
+  }
+
+  .scanner-video {
+    @apply w-full h-full object-cover;
+  }
+
+  /* Scanning overlay frame corners */
+  .scan-frame {
+    @apply absolute inset-0 pointer-events-none;
+  }
+
+  .scan-corner {
+    @apply absolute w-8 h-8;
+    border-color: #22d3ee;
+    border-style: solid;
+  }
+
+  .scan-corner-tl {
+    @apply top-4 left-4;
+    border-width: 3px 0 0 3px;
+    border-radius: 4px 0 0 0;
+  }
+
+  .scan-corner-tr {
+    @apply top-4 right-4;
+    border-width: 3px 3px 0 0;
+    border-radius: 0 4px 0 0;
+  }
+
+  .scan-corner-bl {
+    @apply bottom-4 left-4;
+    border-width: 0 0 3px 3px;
+    border-radius: 0 0 0 4px;
+  }
+
+  .scan-corner-br {
+    @apply bottom-4 right-4;
+    border-width: 0 3px 3px 0;
+    border-radius: 0 0 4px 0;
+  }
+
+  /* Laser line */
+  .laser-line {
+    @apply absolute left-4 right-4 h-0.5;
+    background: linear-gradient(90deg, transparent, #ef4444, #f97316, #ef4444, transparent);
+    box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.6);
+    animation: laserScan 2s ease-in-out infinite;
+  }
+
+  /* Type badge */
+  .type-badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .type-badge-qr {
+    @apply bg-violet-500/20 text-violet-300 border border-violet-500/30;
+  }
+
+  .type-badge-ean {
+    @apply bg-emerald-500/20 text-emerald-300 border border-emerald-500/30;
+  }
+
+  .type-badge-code128 {
+    @apply bg-sky-500/20 text-sky-300 border border-sky-500/30;
+  }
+
+  .type-badge-other {
+    @apply bg-slate-500/20 text-slate-300 border border-slate-500/30;
+  }
+
+  /* Card styles */
+  .scan-card {
+    @apply bg-slate-800/60 border border-slate-700/50 rounded-xl p-4 backdrop-blur-sm transition-all duration-200 hover:border-slate-600/60 hover:bg-slate-800/80;
+  }
+
+  /* Tab styles */
+  .tab-btn {
+    @apply relative flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 rounded-xl;
+  }
+
+  .tab-btn-active {
+    @apply bg-brand-600 text-white shadow-lg shadow-brand-600/25;
+  }
+
+  .tab-btn-inactive {
+    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800/60;
+  }
+
+  /* Button styles */
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-500 active:bg-brand-700 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-brand-600/25 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-slate-200 font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-danger {
+    @apply flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 font-medium rounded-xl border border-red-500/30 transition-all duration-200;
+  }
+
+  /* Input styles */
+  .input-field {
+    @apply w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply bg-slate-800 rounded-lg animate-pulse;
+  }
+
+  /* Success flash overlay */
+  .scan-success-flash {
+    @apply absolute inset-0 pointer-events-none rounded-2xl;
+    animation: scanFlash 0.4s ease-out forwards;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Glass morphism */
+  .glass {
+    @apply bg-slate-900/70 backdrop-blur-md border border-slate-700/50;
+  }
+}
+
+/* Keyframe for laser animation (referenced by tailwind config too) */
+@keyframes laserScan {
+  0%   { top: 10%; opacity: 1; }
+  50%  { top: 85%; opacity: 1; }
+  100% { top: 10%; opacity: 1; }
+}
+
+@keyframes scanFlash {
+  0%   { background-color: rgba(34, 197, 94, 0); }
+  30%  { background-color: rgba(34, 197, 94, 0.35); }
+  100% { background-color: rgba(34, 197, 94, 0); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0);    opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+
+.toast-enter {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+.toast-exit {
+  animation: slideOutRight 0.3s ease-in forwards;
+}
