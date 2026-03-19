@@ -48,7 +48,7 @@ export default function Scanner({ onScan }: ScannerProps) {
   const [state, setState] = useState<ScannerState>('idle')
   const [errorMessage, setErrorMessage] = useState('')
   const [showManual, setShowManual] = useState(false)
-  const [lastScanned, setLastScanned] = useState('')
+  const lastScannedRef = useRef<{ value: string; time: number }>({ value: '', time: 0 })
   const [scanFlash, setScanFlash] = useState(false)
   const [scannedType, setScannedType] = useState('')
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
@@ -170,10 +170,11 @@ export default function Scanner({ onScan }: ScannerProps) {
           const format = result.getBarcodeFormat()
           const typeName = getBarcodeTypeName(format)
 
-          // Debounce: skip same value scanned very recently
-          if (value === lastScanned) return
-          setLastScanned(value)
-          setTimeout(() => setLastScanned(''), 2000)
+          // Debounce: skip same value scanned within 3 seconds (ref-based, no stale closure)
+          const now = Date.now()
+          const last = lastScannedRef.current
+          if (value === last.value && now - last.time < 3000) return
+          lastScannedRef.current = { value, time: now }
 
           setScannedType(typeName)
           setScanFlash(true)
@@ -196,7 +197,7 @@ export default function Scanner({ onScan }: ScannerProps) {
           : 'An unexpected error occurred while starting the camera.'
       )
     }
-  }, [stopCamera, onScan, lastScanned])
+  }, [stopCamera, onScan])
 
   // Start scanner on mount
   useEffect(() => {

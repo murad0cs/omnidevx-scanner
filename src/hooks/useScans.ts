@@ -136,8 +136,7 @@ export function useScans() {
 
       if (insertError) throw insertError
 
-      // Real-time will add it to the list, but we optimistically add it
-      // to ensure instant feedback even if real-time is slow
+      // Optimistically add — realtime subscription deduplicates by id
       setScans((prev) => {
         if (prev.some((s) => s.id === data.id)) return prev
         return [data, ...prev]
